@@ -304,31 +304,18 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       check(urlparse.absolute(url, "/@" .. json["userinfo"]["tikiuid"]) .. "/")
       current_uid = json["userinfo"]["uid"]
       local uid_table = {["uid"]=current_uid}
-      post_request(
+      --[[post_request(
         "https://api.tiki.video/tiki-micro-flow-client/userApi/getUserFollow",
         uid_table
-      )
+      )]]
       post_request(
         "https://api.tiki.video/tiki-micro-flow-client/userApi/getUserPostNum",
         uid_table
       )
-      for _, lab_type in pairs({0}) do--, 1}) do
-        post_request(
-          "https://api.tiki.video/tiki-micro-flow-client/videoApi/getUserVideo",
-          {
-            ["uid"]=current_uid,
-            ["count"]=12,
-            ["tabType"]=lab_type,
-            ["lastPostId"]=0
-          }
-        )
-      end
     end
     if string.match(url, "/@[^/]+/video/[0-9]+$") then
       local data = string.match(html, 'window%.data%s*=%s*({.-});')
       local json = JSON:decode(data)
-      check(json["coverUrl"])
-      check(json["coverUrl"] .. "&dw=540&resize=21")
       discover_item(discovered_videos, "video-url:" .. json["videoUrl"])
       post_request(
         "https://api.tiki.video/tiki-micro-flow-client/videoApi/getVideoInfo",
@@ -345,6 +332,26 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         }
       )
       return urls
+    end
+    if string.match(url, "/userApi/getUserPostNum") then
+      local json = JSON:decode(html)
+      local count = 0
+      for k, data in pairs(json["data"]["postInfoMap"]) do
+        count = count + 1
+        if data["videoNums"] > 0 then
+          for _, lab_type in pairs({0}) do--, 1}) do
+            post_request(
+              "https://api.tiki.video/tiki-micro-flow-client/videoApi/getUserVideo",
+              {
+                ["uid"]=current_uid,
+                ["count"]=100,
+                ["tabType"]=lab_type,
+                ["lastPostId"]=0
+              }
+            )
+          end
+        end
+      end
     end
     if string.match(url, "/videoApi/getVideoComment") then
       local json = JSON:decode(html)
@@ -374,6 +381,8 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         end
         last_id = data["postId"]
         discover_item(discovered_items, "video:" .. data["tikiId"] .. ":" .. data["postId"])
+        check(data["coverUrl"])
+        check(data["coverUrl"] .. "&dw=540&resize=21")
       end
       if last_id ~= nil then
         local lab_type = 0
@@ -385,7 +394,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
             "https://api.tiki.video/tiki-micro-flow-client/videoApi/getUserVideo",
             {
               ["uid"]=current_uid,
-              ["count"]=12,
+              ["count"]=100,
               ["tabType"]=lab_type,
               ["lastPostId"]=last_id
             }
@@ -512,7 +521,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     io.stdout:write("Server returned bad response. ")
     io.stdout:flush()
     tries = tries + 1
-    if tries > 5 then
+    if tries > 9 then
       io.stdout:write(" Skipping.\n")
       io.stdout:flush()
       tries = 0
